@@ -10,6 +10,7 @@ export const useVideoChat = () => {
   const { socket, isConnected } = useSocket();
   const [status, setStatus] = useState<ChatStatus>('idle');
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
 
@@ -79,6 +80,7 @@ export const useVideoChat = () => {
 
       // When we receive the remote stream
       peer.on('stream', (stream) => {
+        setRemoteStream(stream);
 
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream;
@@ -113,6 +115,7 @@ export const useVideoChat = () => {
 
         // When we receive the remote stream
         peer.on('stream', (stream) => {
+          setRemoteStream(stream);
 
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = stream;
@@ -135,6 +138,11 @@ export const useVideoChat = () => {
         peerRef.current.destroy();
         peerRef.current = null;
       }
+
+      // Clear remote stream
+      if (remoteStream) {
+        setRemoteStream(null);
+      }
     });
 
     // Handle being skipped
@@ -145,6 +153,11 @@ export const useVideoChat = () => {
       if (peerRef.current) {
         peerRef.current.destroy();
         peerRef.current = null;
+      }
+
+      // Clear remote stream
+      if (remoteStream) {
+        setRemoteStream(null);
       }
 
       // Automatically look for a new match after a short delay
@@ -163,6 +176,11 @@ export const useVideoChat = () => {
       if (peerRef.current) {
         peerRef.current.destroy();
         peerRef.current = null;
+      }
+
+      // Clear remote stream
+      if (remoteStream) {
+        setRemoteStream(null);
       }
 
       // Automatically look for a new match after a short delay
