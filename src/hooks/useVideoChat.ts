@@ -441,15 +441,69 @@ export const useVideoChat = () => {
 
   // Start looking for a match
   const startMatching = () => {
-    if (socket && isConnected && localStream) {
+    if (socket && localStream) {
+      // If socket is not connected, try to reconnect
+      if (!isConnected) {
+        console.log('Socket not connected, attempting to reconnect...');
+        socket.connect();
+
+        // Wait for connection and then emit ready
+        socket.once('connect', () => {
+          console.log('Socket reconnected, emitting ready');
+          socket.emit('ready');
+          setStatus('waiting');
+        });
+
+        return;
+      }
+
+      // If already connected, emit ready directly
+      console.log('Emitting ready event');
       socket.emit('ready');
+      setStatus('waiting');
+    } else {
+      console.error('Cannot start matching: socket or localStream not available');
+      if (!socket) console.error('Socket is null');
+      if (!localStream) console.error('LocalStream is null');
     }
   };
 
   // Skip current match and find a new one
   const skipMatch = () => {
-    if (socket && isConnected) {
+    if (socket) {
+      // If socket is not connected, try to reconnect
+      if (!isConnected) {
+        console.log('Socket not connected, attempting to reconnect before skip...');
+        socket.connect();
+
+        // Wait for connection and then emit skip
+        socket.once('connect', () => {
+          console.log('Socket reconnected, emitting skip');
+          socket.emit('skip');
+          setStatus('waiting');
+        });
+
+        return;
+      }
+
+      console.log('Emitting skip event');
       socket.emit('skip');
+
+      // Clean up peer connection immediately for better UX
+      if (peerRef.current) {
+        peerRef.current.destroy();
+        peerRef.current = null;
+      }
+
+      // Clear remote stream
+      if (remoteStream) {
+        setRemoteStream(null);
+      }
+
+      // Update status immediately for better UX
+      setStatus('waiting');
+    } else {
+      console.error('Cannot skip: socket not available');
     }
   };
 

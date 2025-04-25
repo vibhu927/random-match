@@ -47,7 +47,29 @@ const VideoChat: React.FC = () => {
               <p className="mb-6">Connect with random people from around the world</p>
               {status === 'idle' && (
                 <button
-                  onClick={startMatching}
+                  onClick={() => {
+                    // Add visual feedback and retry mechanism
+                    const btn = document.activeElement as HTMLButtonElement;
+                    if (btn) {
+                      btn.disabled = true;
+                      btn.innerText = "Connecting...";
+                      btn.className = "bg-gray-500 text-white px-6 py-3 rounded-full font-medium transition-colors";
+
+                      // Call startMatching
+                      startMatching();
+
+                      // Set a timeout to re-enable the button if nothing happens
+                      setTimeout(() => {
+                        if (status === 'idle') {
+                          btn.disabled = false;
+                          btn.innerText = "Start Chatting";
+                          btn.className = "bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full font-medium transition-colors";
+                        }
+                      }, 5000);
+                    } else {
+                      startMatching();
+                    }
+                  }}
                   className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full font-medium transition-colors"
                 >
                   Start Chatting

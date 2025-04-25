@@ -18,12 +18,20 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
     path: '/api/socket',
     addTrailingSlash: false,
     // Add more reliable connection settings
-    pingTimeout: 60000,
-    pingInterval: 25000,
+    pingTimeout: 120000, // 2 minutes
+    pingInterval: 10000, // 10 seconds
     transports: ['websocket', 'polling'],
     cors: {
       origin: '*',
       methods: ['GET', 'POST']
+    },
+    connectTimeout: 60000, // 1 minute
+    // Prevent multiple connections from the same client
+    connectionStateRecovery: {
+      // the backup duration of the sessions and the packets
+      maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+      // whether to skip middlewares upon successful recovery
+      skipMiddlewares: true,
     }
   });
   res.socket.server.io = io;

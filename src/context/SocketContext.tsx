@@ -28,16 +28,49 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         const socketInstance = io({
           path: '/api/socket',
+          reconnection: true,
+          reconnectionAttempts: 10,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          timeout: 20000,
+          autoConnect: true,
+          forceNew: false
         });
 
         socketInstance.on('connect', () => {
-          console.log('Socket connected');
+          console.log('Socket connected with ID:', socketInstance.id);
           setIsConnected(true);
         });
 
-        socketInstance.on('disconnect', () => {
-          console.log('Socket disconnected');
+        socketInstance.on('disconnect', (reason) => {
+          console.log('Socket disconnected, reason:', reason);
           setIsConnected(false);
+
+          // Automatically try to reconnect on certain disconnect reasons
+          if (reason === 'io server disconnect' || reason === 'transport close') {
+            console.log('Attempting to reconnect...');
+            socketInstance.connect();
+          }
+        });
+
+        socketInstance.on('connect_error', (error) => {
+          console.error('Socket connection error:', error);
+        });
+
+        socketInstance.on('reconnect', (attemptNumber) => {
+          console.log('Socket reconnected after', attemptNumber, 'attempts');
+        });
+
+        socketInstance.on('reconnect_attempt', (attemptNumber) => {
+          console.log('Socket reconnection attempt:', attemptNumber);
+        });
+
+        socketInstance.on('reconnect_error', (error) => {
+          console.error('Socket reconnection error:', error);
+        });
+
+        socketInstance.on('reconnect_failed', () => {
+          console.error('Socket failed to reconnect');
         });
 
         setSocket(socketInstance);
@@ -58,6 +91,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Cleanup on unmount
     return () => {
       if (socketInstance) {
+        console.log('Cleaning up socket connection');
         socketInstance.disconnect();
       }
     };
