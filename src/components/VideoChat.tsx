@@ -24,10 +24,17 @@ const VideoChat: React.FC = () => {
       <div className="flex-1 relative overflow-hidden bg-gray-900 rounded-lg">
         {/* Remote video (main view) */}
         {status === 'connected' ? (
-          <VideoPlayer
-            ref={remoteVideoRef}
-            className="w-full h-full"
-          />
+          <div className="relative w-full h-full">
+            <VideoPlayer
+              ref={remoteVideoRef}
+              className="w-full h-full"
+            />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-black/50 text-white px-4 py-2 rounded-full text-sm">
+                Connected - Video should appear shortly
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
             <div className="text-white text-center p-6">

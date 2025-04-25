@@ -77,10 +77,19 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
 
     // Handle WebRTC signaling
     socket.on('signal', ({ to, signal }) => {
-      io.to(to).emit('signal', {
-        from: socket.id,
-        signal,
-      });
+      console.log(`Signal from ${socket.id} to ${to}`, signal.type || 'candidate');
+
+      // Check if the recipient exists
+      if (io.sockets.sockets.get(to)) {
+        io.to(to).emit('signal', {
+          from: socket.id,
+          signal,
+        });
+      } else {
+        console.log(`Recipient ${to} not found, notifying sender`);
+        // Notify the sender that the recipient is not available
+        socket.emit('peerUnavailable', { peerId: to });
+      }
     });
 
     // Handle disconnection

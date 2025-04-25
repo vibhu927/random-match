@@ -66,25 +66,52 @@ export const useVideoChat = () => {
       // Create a peer connection as initiator
       const peer = new Peer({
         initiator: true,
-        trickle: false,
+        trickle: true, // Enable trickle ICE for better connection establishment
         stream: localStream,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
       });
+
+      console.log('Created initiator peer connection');
 
       // When signal is generated, send it to the partner
       peer.on('signal', (data) => {
+        console.log('Generated signal (initiator):', data.type || 'candidate');
         socket.emit('signal', {
           to: partnerId,
           signal: data,
         });
       });
 
+      // Add connection state handlers
+      peer.on('connect', () => {
+        console.log('Peer connection established (initiator)');
+      });
+
+      peer.on('close', () => {
+        console.log('Peer connection closed (initiator)');
+      });
+
       // When we receive the remote stream
       peer.on('stream', (stream) => {
+        console.log('Received remote stream', stream);
         setRemoteStream(stream);
 
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream;
+          console.log('Set remote video source');
+        } else {
+          console.error('Remote video ref is not available');
         }
+      });
+
+      // Add error handler
+      peer.on('error', (err) => {
+        console.error('Peer connection error:', err);
       });
 
       peerRef.current = peer;
@@ -101,25 +128,52 @@ export const useVideoChat = () => {
         // If we're not connected yet, we need to create a new peer
         const peer = new Peer({
           initiator: false,
-          trickle: false,
+          trickle: true, // Enable trickle ICE for better connection establishment
           stream: localStream,
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
+          }
         });
+
+        console.log('Created non-initiator peer connection');
 
         // When signal is generated, send it to the partner
         peer.on('signal', (data) => {
+          console.log('Generated signal (non-initiator):', data.type || 'candidate');
           socket.emit('signal', {
             to: from,
             signal: data,
           });
         });
 
+        // Add connection state handlers
+        peer.on('connect', () => {
+          console.log('Peer connection established (non-initiator)');
+        });
+
+        peer.on('close', () => {
+          console.log('Peer connection closed (non-initiator)');
+        });
+
         // When we receive the remote stream
         peer.on('stream', (stream) => {
+          console.log('Received remote stream (non-initiator)', stream);
           setRemoteStream(stream);
 
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = stream;
+            console.log('Set remote video source (non-initiator)');
+          } else {
+            console.error('Remote video ref is not available (non-initiator)');
           }
+        });
+
+        // Add error handler
+        peer.on('error', (err) => {
+          console.error('Peer connection error (non-initiator):', err);
         });
 
         // Process the received signal
@@ -191,6 +245,32 @@ export const useVideoChat = () => {
       }, 1000);
     });
 
+    // Handle peer unavailable (when signaling fails)
+    socket.on('peerUnavailable', ({ peerId }) => {
+      console.log(`Peer ${peerId} is unavailable`);
+
+      // Clean up peer connection
+      if (peerRef.current) {
+        peerRef.current.destroy();
+        peerRef.current = null;
+      }
+
+      // Clear remote stream
+      if (remoteStream) {
+        setRemoteStream(null);
+      }
+
+      // Go back to waiting state
+      setStatus('waiting');
+
+      // Automatically look for a new match
+      setTimeout(() => {
+        if (socket.connected) {
+          socket.emit('ready');
+        }
+      }, 1000);
+    });
+
     // Cleanup
     return () => {
       socket.off('matched');
@@ -198,6 +278,7 @@ export const useVideoChat = () => {
       socket.off('waiting');
       socket.off('skipped');
       socket.off('partnerDisconnected');
+      socket.off('peerUnavailable');
 
       if (peerRef.current) {
         peerRef.current.destroy();
