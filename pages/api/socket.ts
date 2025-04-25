@@ -31,7 +31,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
   // Store active users
   const activeUsers = new Map();
   // Store waiting users
-  const waitingUsers: string[] = [];
+  let waitingUsers: string[] = [];
 
   io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);

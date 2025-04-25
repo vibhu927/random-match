@@ -11,6 +11,7 @@ const VideoChat: React.FC = () => {
     status,
     localVideoRef,
     remoteVideoRef,
+    remoteStream,
     startMatching,
     skipMatch,
     toggleMute,

@@ -479,6 +479,7 @@ export const useVideoChat = () => {
     status,
     localVideoRef,
     remoteVideoRef,
+    remoteStream,
     startMatching,
     skipMatch,
     toggleMute,
