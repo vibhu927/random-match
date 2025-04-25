@@ -21,23 +21,45 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     // Initialize socket connection
-    const socketInstance = io();
+    const initSocket = async () => {
+      try {
+        // Make a request to initialize the socket server
+        await fetch('/api/socket');
 
-    socketInstance.on('connect', () => {
-      console.log('Socket connected');
-      setIsConnected(true);
+        const socketInstance = io({
+          path: '/api/socket',
+        });
+
+        socketInstance.on('connect', () => {
+          console.log('Socket connected');
+          setIsConnected(true);
+        });
+
+        socketInstance.on('disconnect', () => {
+          console.log('Socket disconnected');
+          setIsConnected(false);
+        });
+
+        setSocket(socketInstance);
+
+        return socketInstance;
+      } catch (error) {
+        console.error('Socket initialization error:', error);
+        return null;
+      }
+    };
+
+    let socketInstance: Socket | null = null;
+
+    initSocket().then(instance => {
+      socketInstance = instance;
     });
-
-    socketInstance.on('disconnect', () => {
-      console.log('Socket disconnected');
-      setIsConnected(false);
-    });
-
-    setSocket(socketInstance);
 
     // Cleanup on unmount
     return () => {
-      socketInstance.disconnect();
+      if (socketInstance) {
+        socketInstance.disconnect();
+      }
     };
   }, []);
 
