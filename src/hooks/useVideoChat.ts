@@ -61,57 +61,127 @@ export const useVideoChat = () => {
 
     // Handle when matched with another user
     socket.on('matched', ({ partnerId }) => {
+      console.log(`Matched with partner: ${partnerId}`);
       setStatus('connected');
+
+      // Destroy any existing peer connection
+      if (peerRef.current) {
+        peerRef.current.destroy();
+        peerRef.current = null;
+      }
 
       // Create a peer connection as initiator
       const peer = new Peer({
         initiator: true,
-        trickle: true, // Enable trickle ICE for better connection establishment
+        trickle: true,
         stream: localStream,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            {
+              urls: 'turn:numb.viagenie.ca',
+              username: 'webrtc@live.com',
+              credential: 'muazkh'
+            }
           ]
+        },
+        // Simplify the connection process
+        sdpTransform: (sdp) => {
+          console.log('SDP Transform (initiator)');
+          return sdp;
         }
       });
 
       console.log('Created initiator peer connection');
 
+      // Set a connection timeout
+      const connectionTimeout = setTimeout(() => {
+        console.log('Connection timeout - destroying peer');
+        if (peerRef.current === peer) {
+          peer.destroy();
+          peerRef.current = null;
+          setRemoteStream(null);
+          setStatus('waiting');
+          // Try to reconnect
+          socket.emit('ready');
+        }
+      }, 15000); // 15 seconds timeout
+
       // When signal is generated, send it to the partner
       peer.on('signal', (data) => {
         console.log('Generated signal (initiator):', data.type || 'candidate');
-        socket.emit('signal', {
-          to: partnerId,
-          signal: data,
-        });
+        if (socket.connected) {
+          socket.emit('signal', {
+            to: partnerId,
+            signal: data,
+          });
+        }
       });
 
       // Add connection state handlers
       peer.on('connect', () => {
         console.log('Peer connection established (initiator)');
+        clearTimeout(connectionTimeout);
+
+        // Send a test message to confirm data channel is working
+        try {
+          peer.send('connection-test');
+        } catch (e) {
+          console.error('Error sending test message:', e);
+        }
+      });
+
+      peer.on('data', (data) => {
+        console.log('Received data from peer (initiator):', data.toString());
       });
 
       peer.on('close', () => {
         console.log('Peer connection closed (initiator)');
+        clearTimeout(connectionTimeout);
+        if (peerRef.current === peer) {
+          peerRef.current = null;
+          setRemoteStream(null);
+        }
       });
 
       // When we receive the remote stream
       peer.on('stream', (stream) => {
-        console.log('Received remote stream', stream);
+        console.log('Received remote stream (initiator)', stream);
         setRemoteStream(stream);
 
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream;
-          console.log('Set remote video source');
+          console.log('Set remote video source (initiator)');
+
+          // Force play the video
+          remoteVideoRef.current.play().catch(e => {
+            console.error('Error playing remote video:', e);
+          });
         } else {
-          console.error('Remote video ref is not available');
+          console.error('Remote video ref is not available (initiator)');
         }
       });
 
       // Add error handler
       peer.on('error', (err) => {
-        console.error('Peer connection error:', err);
+        console.error('Peer connection error (initiator):', err);
+        clearTimeout(connectionTimeout);
+
+        // Only handle if this is still the current peer
+        if (peerRef.current === peer) {
+          peer.destroy();
+          peerRef.current = null;
+          setRemoteStream(null);
+
+          // Go back to waiting and try again
+          setStatus('waiting');
+          setTimeout(() => {
+            if (socket.connected) {
+              socket.emit('ready');
+            }
+          }, 1000);
+        }
       });
 
       peerRef.current = peer;
@@ -119,43 +189,97 @@ export const useVideoChat = () => {
 
     // Handle receiving signals from partner
     socket.on('signal', ({ from, signal }) => {
-      if (status === 'connected') {
+      console.log(`Received signal from ${from}:`, signal.type || 'candidate');
+
+      if (peerRef.current && status === 'connected') {
         // If we're already connected, we're receiving a signal from our peer
-        if (peerRef.current) {
+        console.log('Forwarding signal to existing peer');
+        try {
           peerRef.current.signal(signal);
+        } catch (e) {
+          console.error('Error processing signal:', e);
         }
       } else {
+        console.log('Creating new peer as non-initiator');
+        // Destroy any existing peer connection
+        if (peerRef.current) {
+          peerRef.current.destroy();
+          peerRef.current = null;
+        }
+
         // If we're not connected yet, we need to create a new peer
         const peer = new Peer({
           initiator: false,
-          trickle: true, // Enable trickle ICE for better connection establishment
+          trickle: true,
           stream: localStream,
           config: {
             iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:global.stun.twilio.com:3478' }
+              { urls: 'stun:global.stun.twilio.com:3478' },
+              {
+                urls: 'turn:numb.viagenie.ca',
+                username: 'webrtc@live.com',
+                credential: 'muazkh'
+              }
             ]
+          },
+          // Simplify the connection process
+          sdpTransform: (sdp) => {
+            console.log('SDP Transform (non-initiator)');
+            return sdp;
           }
         });
 
         console.log('Created non-initiator peer connection');
 
+        // Set a connection timeout
+        const connectionTimeout = setTimeout(() => {
+          console.log('Connection timeout - destroying peer (non-initiator)');
+          if (peerRef.current === peer) {
+            peer.destroy();
+            peerRef.current = null;
+            setRemoteStream(null);
+            setStatus('waiting');
+            // Try to reconnect
+            socket.emit('ready');
+          }
+        }, 15000); // 15 seconds timeout
+
         // When signal is generated, send it to the partner
         peer.on('signal', (data) => {
           console.log('Generated signal (non-initiator):', data.type || 'candidate');
-          socket.emit('signal', {
-            to: from,
-            signal: data,
-          });
+          if (socket.connected) {
+            socket.emit('signal', {
+              to: from,
+              signal: data,
+            });
+          }
         });
 
         // Add connection state handlers
         peer.on('connect', () => {
           console.log('Peer connection established (non-initiator)');
+          clearTimeout(connectionTimeout);
+
+          // Send a test message to confirm data channel is working
+          try {
+            peer.send('connection-test-response');
+          } catch (e) {
+            console.error('Error sending test message:', e);
+          }
+        });
+
+        peer.on('data', (data) => {
+          console.log('Received data from peer (non-initiator):', data.toString());
         });
 
         peer.on('close', () => {
           console.log('Peer connection closed (non-initiator)');
+          clearTimeout(connectionTimeout);
+          if (peerRef.current === peer) {
+            peerRef.current = null;
+            setRemoteStream(null);
+          }
         });
 
         // When we receive the remote stream
@@ -166,6 +290,11 @@ export const useVideoChat = () => {
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = stream;
             console.log('Set remote video source (non-initiator)');
+
+            // Force play the video
+            remoteVideoRef.current.play().catch(e => {
+              console.error('Error playing remote video:', e);
+            });
           } else {
             console.error('Remote video ref is not available (non-initiator)');
           }
@@ -174,10 +303,33 @@ export const useVideoChat = () => {
         // Add error handler
         peer.on('error', (err) => {
           console.error('Peer connection error (non-initiator):', err);
+          clearTimeout(connectionTimeout);
+
+          // Only handle if this is still the current peer
+          if (peerRef.current === peer) {
+            peer.destroy();
+            peerRef.current = null;
+            setRemoteStream(null);
+
+            // Go back to waiting and try again
+            setStatus('waiting');
+            setTimeout(() => {
+              if (socket.connected) {
+                socket.emit('ready');
+              }
+            }, 1000);
+          }
         });
 
         // Process the received signal
-        peer.signal(signal);
+        try {
+          peer.signal(signal);
+        } catch (e) {
+          console.error('Error processing initial signal:', e);
+          peer.destroy();
+          return;
+        }
+
         peerRef.current = peer;
         setStatus('connected');
       }

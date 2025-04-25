@@ -20,7 +20,7 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status }) => {
       color = 'text-blue-500';
       break;
     case 'connected':
-      message = 'Connected! You can chat now';
+      message = 'Connected! Video stream should appear shortly';
       color = 'text-green-500';
       break;
     case 'skipped':

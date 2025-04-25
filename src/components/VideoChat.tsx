@@ -29,11 +29,15 @@ const VideoChat: React.FC = () => {
               ref={remoteVideoRef}
               className="w-full h-full"
             />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="bg-black/50 text-white px-4 py-2 rounded-full text-sm">
-                Connected - Video should appear shortly
+            {!remoteStream && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="bg-black/50 text-white px-6 py-3 rounded-lg text-sm flex flex-col items-center">
+                  <div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent mb-3"></div>
+                  <div>Connected - Establishing video connection...</div>
+                  <div className="text-xs mt-2 text-gray-300">This may take a few moments</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
