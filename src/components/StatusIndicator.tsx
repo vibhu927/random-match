@@ -3,7 +3,7 @@
 import React from 'react';
 
 interface StatusIndicatorProps {
-  status: 'idle' | 'waiting' | 'connected' | 'skipped';
+  status: 'idle' | 'waiting' | 'connected' | 'skipped' | 'error';
 }
 
 const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status }) => {
@@ -26,6 +26,10 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status }) => {
     case 'skipped':
       message = 'The other person left. Finding a new match...';
       color = 'text-yellow-500';
+      break;
+    case 'error':
+      message = 'Camera/microphone access error. This browser may not be supported.';
+      color = 'text-red-500';
       break;
   }
 

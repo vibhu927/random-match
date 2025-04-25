@@ -41,6 +41,13 @@ const VideoChat: React.FC = () => {
                   Start Chatting
                 </button>
               )}
+              {status === 'error' && (
+                <div className="bg-red-500/20 border border-red-500 p-4 rounded-lg text-white">
+                  <p className="font-medium">Camera/microphone access error</p>
+                  <p className="text-sm mt-2">This browser may not support WebRTC or camera access is blocked.</p>
+                  <p className="text-sm mt-1">Try using a modern browser like Chrome, Firefox, or Safari.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

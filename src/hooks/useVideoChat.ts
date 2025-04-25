@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSocket } from '@/src/context/SocketContext';
 import Peer from 'simple-peer';
 
-type ChatStatus = 'idle' | 'waiting' | 'connected' | 'skipped';
+type ChatStatus = 'idle' | 'waiting' | 'connected' | 'skipped' | 'error';
 
 export const useVideoChat = () => {
   const { socket, isConnected } = useSocket();
@@ -21,6 +21,13 @@ export const useVideoChat = () => {
   useEffect(() => {
     const initializeMedia = async () => {
       try {
+        // Check if mediaDevices is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error('MediaDevices API not supported in this browser');
+          setStatus('error');
+          return;
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true
@@ -33,6 +40,7 @@ export const useVideoChat = () => {
         }
       } catch (error) {
         console.error('Error accessing media devices:', error);
+        setStatus('error');
       }
     };
 
