@@ -79,13 +79,28 @@ export const useVideoChat = () => {
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
             { urls: 'stun:global.stun.twilio.com:3478' },
             {
-              urls: 'turn:numb.viagenie.ca',
-              username: 'webrtc@live.com',
-              credential: 'muazkh'
+              urls: 'turn:openrelay.metered.ca:80',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            {
+              urls: 'turn:openrelay.metered.ca:443',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            {
+              urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
             }
-          ]
+          ],
+          iceCandidatePoolSize: 10
         },
         // Simplify the connection process
         sdpTransform: (sdp) => {
@@ -100,14 +115,28 @@ export const useVideoChat = () => {
       const connectionTimeout = setTimeout(() => {
         console.log('Connection timeout - destroying peer');
         if (peerRef.current === peer) {
-          peer.destroy();
+          try {
+            peer.destroy();
+          } catch (e) {
+            console.error('Error destroying peer:', e);
+          }
           peerRef.current = null;
           setRemoteStream(null);
           setStatus('waiting');
           // Try to reconnect
-          socket.emit('ready');
+          console.log('Trying to reconnect after timeout...');
+          setTimeout(() => {
+            if (socket && socket.connected) {
+              socket.emit('ready');
+            } else if (socket) {
+              socket.connect();
+              socket.once('connect', () => {
+                socket.emit('ready');
+              });
+            }
+          }, 1000);
         }
-      }, 15000); // 15 seconds timeout
+      }, 10000); // 10 seconds timeout
 
       // When signal is generated, send it to the partner
       peer.on('signal', (data) => {
@@ -216,13 +245,28 @@ export const useVideoChat = () => {
           config: {
             iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+              { urls: 'stun:stun2.l.google.com:19302' },
+              { urls: 'stun:stun3.l.google.com:19302' },
+              { urls: 'stun:stun4.l.google.com:19302' },
               { urls: 'stun:global.stun.twilio.com:3478' },
               {
-                urls: 'turn:numb.viagenie.ca',
-                username: 'webrtc@live.com',
-                credential: 'muazkh'
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+              },
+              {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+              },
+              {
+                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
               }
-            ]
+            ],
+            iceCandidatePoolSize: 10
           },
           // Simplify the connection process
           sdpTransform: (sdp) => {
@@ -237,14 +281,28 @@ export const useVideoChat = () => {
         const connectionTimeout = setTimeout(() => {
           console.log('Connection timeout - destroying peer (non-initiator)');
           if (peerRef.current === peer) {
-            peer.destroy();
+            try {
+              peer.destroy();
+            } catch (e) {
+              console.error('Error destroying peer (non-initiator):', e);
+            }
             peerRef.current = null;
             setRemoteStream(null);
             setStatus('waiting');
             // Try to reconnect
-            socket.emit('ready');
+            console.log('Trying to reconnect after timeout (non-initiator)...');
+            setTimeout(() => {
+              if (socket && socket.connected) {
+                socket.emit('ready');
+              } else if (socket) {
+                socket.connect();
+                socket.once('connect', () => {
+                  socket.emit('ready');
+                });
+              }
+            }, 1000);
           }
-        }, 15000); // 15 seconds timeout
+        }, 10000); // 10 seconds timeout
 
         // When signal is generated, send it to the partner
         peer.on('signal', (data) => {

@@ -26,7 +26,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Make a request to initialize the socket server
         await fetch('/api/socket');
 
-        const socketInstance = io({
+        // Create socket with improved reliability options
+        const socketInstance = io('', {
           path: '/api/socket',
           reconnection: true,
           reconnectionAttempts: 10,
@@ -34,7 +35,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           reconnectionDelayMax: 5000,
           timeout: 20000,
           autoConnect: true,
-          forceNew: false
+          forceNew: true,
+          transports: ['websocket', 'polling']
         });
 
         socketInstance.on('connect', () => {

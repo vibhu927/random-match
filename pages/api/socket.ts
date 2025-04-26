@@ -23,21 +23,20 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
     path: '/api/socket',
     addTrailingSlash: false,
     // Add more reliable connection settings
-    pingTimeout: 120000, // 2 minutes
-    pingInterval: 10000, // 10 seconds
+    pingTimeout: 60000, // 1 minute
+    pingInterval: 5000, // 5 seconds
     transports: ['websocket', 'polling'],
     cors: {
       origin: '*',
       methods: ['GET', 'POST']
     },
-    connectTimeout: 60000, // 1 minute
-    // Prevent multiple connections from the same client
-    connectionStateRecovery: {
-      // the backup duration of the sessions and the packets
-      maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
-      // whether to skip middlewares upon successful recovery
-      skipMiddlewares: true,
-    }
+    connectTimeout: 30000, // 30 seconds
+    // Allow multiple connections from the same client (for testing)
+    connectionStateRecovery: false,
+    // Increase buffer size for large signaling messages
+    maxHttpBufferSize: 1e8, // 100 MB
+    // Disable compression for better compatibility
+    perMessageDeflate: false
   });
   res.socket.server.io = io;
 
@@ -73,29 +72,51 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
         waitingUsers.splice(waitingIndex, 1);
       }
 
+      // Verify this socket is still connected
+      if (!io.sockets.sockets.get(socket.id)) {
+        console.log(`Socket ${socket.id} disconnected during ready event`);
+        return;
+      }
+
       // If there's someone waiting, match them
       if (waitingUsers.length > 0) {
         // Find a valid partner
         let partnerId = null;
+        let validWaitingUsers = [];
 
-        // Try to find a valid partner
-        while (waitingUsers.length > 0 && !partnerId) {
-          const potentialPartnerId = waitingUsers.shift();
-
-          // Check if the potential partner is still connected
-          if (potentialPartnerId && io.sockets.sockets.get(potentialPartnerId)) {
-            partnerId = potentialPartnerId;
+        // Filter out disconnected users from waiting list
+        for (const id of waitingUsers) {
+          if (id !== socket.id && io.sockets.sockets.get(id)) {
+            validWaitingUsers.push(id);
           }
         }
 
+        // Update waiting list with only valid users
+        waitingUsers = validWaitingUsers;
+
+        // Get the first valid waiting user
+        if (waitingUsers.length > 0) {
+          partnerId = waitingUsers.shift();
+        }
+
         if (partnerId) {
+          // Double-check both users are still connected
+          const partnerSocket = io.sockets.sockets.get(partnerId);
+          if (!partnerSocket) {
+            console.log(`Partner ${partnerId} disconnected before matching`);
+            waitingUsers.push(socket.id);
+            socket.emit('waiting');
+            return;
+          }
+
           // Set up the match
           activeUsers.set(socket.id, partnerId);
           activeUsers.set(partnerId, socket.id);
 
           // Notify both users about the match
+          console.log(`Sending matched event to ${socket.id} and ${partnerId}`);
           socket.emit('matched', { partnerId });
-          io.to(partnerId).emit('matched', { partnerId: socket.id });
+          partnerSocket.emit('matched', { partnerId: socket.id });
 
           console.log(`Matched ${socket.id} with ${partnerId}`);
         } else {
@@ -108,6 +129,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
         waitingUsers.push(socket.id);
         socket.emit('waiting');
       }
+
+      // Log current state
+      console.log(`Active users: ${activeUsers.size}, Waiting users: ${waitingUsers.length}`);
     });
 
     // Handle skip - find a new match
@@ -179,16 +203,41 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
     socket.on('signal', ({ to, signal }) => {
       console.log(`Signal from ${socket.id} to ${to}`, signal.type || 'candidate');
 
+      // Verify this socket is still connected
+      if (!io.sockets.sockets.get(socket.id)) {
+        console.log(`Socket ${socket.id} disconnected during signal event`);
+        return;
+      }
+
+      // Check if the users are actually matched
+      const partnerId = activeUsers.get(socket.id);
+      if (partnerId !== to) {
+        console.log(`Signal mismatch: ${socket.id} is trying to signal ${to} but is matched with ${partnerId || 'nobody'}`);
+        socket.emit('peerUnavailable', { peerId: to });
+        return;
+      }
+
       // Check if the recipient exists
-      if (io.sockets.sockets.get(to)) {
-        io.to(to).emit('signal', {
-          from: socket.id,
-          signal,
-        });
+      const recipientSocket = io.sockets.sockets.get(to);
+      if (recipientSocket) {
+        try {
+          recipientSocket.emit('signal', {
+            from: socket.id,
+            signal,
+          });
+          console.log(`Signal forwarded from ${socket.id} to ${to}`);
+        } catch (error) {
+          console.error(`Error forwarding signal to ${to}:`, error);
+          socket.emit('peerUnavailable', { peerId: to });
+        }
       } else {
         console.log(`Recipient ${to} not found, notifying sender`);
         // Notify the sender that the recipient is not available
         socket.emit('peerUnavailable', { peerId: to });
+
+        // Clean up the match since the partner is gone
+        activeUsers.delete(socket.id);
+        activeUsers.delete(to);
       }
     });
 
