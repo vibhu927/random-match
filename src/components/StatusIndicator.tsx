@@ -34,9 +34,9 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({ status }) => {
   }
 
   return (
-    <div className={`text-center font-medium ${color} flex items-center justify-center gap-2`}>
+    <div className={`text-center font-medium ${color} flex items-center justify-center gap-2 text-sm sm:text-base px-2`}>
       {status === 'waiting' && (
-        <div className="animate-spin h-4 w-4 border-2 border-blue-500 rounded-full border-t-transparent"></div>
+        <div className="animate-spin h-3 w-3 sm:h-4 sm:w-4 border-2 border-blue-500 rounded-full border-t-transparent"></div>
       )}
       <span>{message}</span>
     </div>
