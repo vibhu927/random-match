@@ -40,7 +40,20 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
       const handleLoadedData = () => {
         console.log(`Video ${isLocal ? 'local' : 'remote'} data loaded`);
         // Force play when data is loaded
-        video.play().catch(e => console.error('Error playing video:', e));
+        try {
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(e => {
+              console.error('Error playing video:', e);
+              // Try again after a short delay
+              setTimeout(() => {
+                video.play().catch(e2 => console.error('Error playing video (retry):', e2));
+              }, 1000);
+            });
+          }
+        } catch (e) {
+          console.error('Exception trying to play video:', e);
+        }
       };
 
       const handleError = (e: Event) => {

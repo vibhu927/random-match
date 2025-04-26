@@ -46,9 +46,25 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
   const activeUsers = new Map();
   // Store waiting users
   let waitingUsers: string[] = [];
+  // Track total connected users
+  let connectedUsers = 0;
+
+  // Function to broadcast user count to all clients
+  const broadcastUserCount = () => {
+    io.emit('userCount', {
+      total: connectedUsers,
+      waiting: waitingUsers.length,
+      chatting: activeUsers.size / 2
+    });
+  };
 
   io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.id}`);
+    // Increment user count
+    connectedUsers++;
+    console.log(`User connected: ${socket.id}, Total users: ${connectedUsers}`);
+
+    // Broadcast updated user count
+    broadcastUserCount();
 
     // Add user to waiting list when they're ready to match
     socket.on('ready', () => {
@@ -67,40 +83,40 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
           existingPartner.emit('skipped');
         }
       }
-      
+
       // Remove from waiting list if already there
       const waitingIndex = waitingUsers.indexOf(socket.id);
       if (waitingIndex !== -1) {
         waitingUsers.splice(waitingIndex, 1);
       }
-      
+
       // Verify this socket is still connected
       if (!io.sockets.sockets.get(socket.id)) {
         console.log(`Socket ${socket.id} disconnected during ready event`);
         return;
       }
-      
+
       // If there's someone waiting, match them
       if (waitingUsers.length > 0) {
         // Find a valid partner
         let partnerId = null;
         const validWaitingUsers = [];
-        
+
         // Filter out disconnected users from waiting list
         for (const id of waitingUsers) {
           if (id !== socket.id && io.sockets.sockets.get(id)) {
             validWaitingUsers.push(id);
           }
         }
-        
+
         // Update waiting list with only valid users
         waitingUsers = validWaitingUsers;
-        
+
         // Get the first valid waiting user
         if (waitingUsers.length > 0) {
           partnerId = waitingUsers.shift();
         }
-        
+
         if (partnerId) {
           // Double-check both users are still connected
           const partnerSocket = io.sockets.sockets.get(partnerId);
@@ -110,16 +126,16 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
             socket.emit('waiting');
             return;
           }
-          
+
           // Set up the match
           activeUsers.set(socket.id, partnerId);
           activeUsers.set(partnerId, socket.id);
-          
+
           // Notify both users about the match
           console.log(`Sending matched event to ${socket.id} and ${partnerId}`);
           socket.emit('matched', { partnerId });
           partnerSocket.emit('matched', { partnerId: socket.id });
-          
+
           console.log(`Matched ${socket.id} with ${partnerId}`);
         } else {
           // No valid partners found, add current user to waiting list
@@ -131,16 +147,19 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
         waitingUsers.push(socket.id);
         socket.emit('waiting');
       }
-      
+
       // Log current state
-      console.log(`Active users: ${activeUsers.size}, Waiting users: ${waitingUsers.length}`);
+      console.log(`Active users: ${activeUsers.size}, Waiting users: ${waitingUsers.length}, Total users: ${connectedUsers}`);
+
+      // Broadcast updated user count
+      broadcastUserCount();
     });
-    
+
     // Handle skip - find a new match
     socket.on('skip', () => {
       console.log(`User ${socket.id} is skipping their current match`);
       const partnerId = activeUsers.get(socket.id);
-      
+
       if (partnerId) {
         // Check if partner is still connected
         if (io.sockets.sockets.get(partnerId)) {
@@ -148,22 +167,22 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
           // Notify the partner they've been skipped
           io.to(partnerId).emit('skipped');
         }
-        
+
         // Remove the match
         activeUsers.delete(socket.id);
         activeUsers.delete(partnerId);
       }
-      
+
       // Remove from waiting list if already there
       const waitingIndex = waitingUsers.indexOf(socket.id);
       if (waitingIndex !== -1) {
         waitingUsers.splice(waitingIndex, 1);
       }
-      
+
       // Add user back to waiting list to find a new match
       waitingUsers.push(socket.id);
       socket.emit('waiting');
-      
+
       // Immediately try to find a new match
       if (waitingUsers.length > 1) {
         // The user we just added is at the end, so we need to find someone else
@@ -171,46 +190,46 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
         if (otherUsers.length > 0) {
           // Find a valid partner
           let partnerId = null;
-          
+
           // Try to find a valid partner
           for (let i = 0; i < otherUsers.length; i++) {
             const potentialPartnerId = otherUsers[i];
-            
+
             // Check if the potential partner is still connected
             if (potentialPartnerId && io.sockets.sockets.get(potentialPartnerId)) {
               partnerId = potentialPartnerId;
               break;
             }
           }
-          
+
           if (partnerId) {
             // Remove both users from waiting list
             waitingUsers = waitingUsers.filter(id => id !== socket.id && id !== partnerId);
-            
+
             // Set up the match
             activeUsers.set(socket.id, partnerId);
             activeUsers.set(partnerId, socket.id);
-            
+
             // Notify both users about the match
             socket.emit('matched', { partnerId });
             io.to(partnerId).emit('matched', { partnerId: socket.id });
-            
+
             console.log(`Matched ${socket.id} with ${partnerId} after skip`);
           }
         }
       }
     });
-    
+
     // Handle WebRTC signaling
     socket.on('signal', ({ to, signal }) => {
       console.log(`Signal from ${socket.id} to ${to}`, signal.type || 'candidate');
-      
+
       // Verify this socket is still connected
       if (!io.sockets.sockets.get(socket.id)) {
         console.log(`Socket ${socket.id} disconnected during signal event`);
         return;
       }
-      
+
       // Check if the users are actually matched
       const partnerId = activeUsers.get(socket.id);
       if (partnerId !== to) {
@@ -218,7 +237,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
         socket.emit('peerUnavailable', { peerId: to });
         return;
       }
-      
+
       // Check if the recipient exists
       const recipientSocket = io.sockets.sockets.get(to);
       if (recipientSocket) {
@@ -236,44 +255,49 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
         console.log(`Recipient ${to} not found, notifying sender`);
         // Notify the sender that the recipient is not available
         socket.emit('peerUnavailable', { peerId: to });
-        
+
         // Clean up the match since the partner is gone
         activeUsers.delete(socket.id);
         activeUsers.delete(to);
       }
     });
-    
+
     // Handle disconnection
     socket.on('disconnect', () => {
-      console.log(`User disconnected: ${socket.id}`);
-      
+      // Decrement user count
+      connectedUsers--;
+      console.log(`User disconnected: ${socket.id}, Total users: ${connectedUsers}`);
+
       // If user was in a match, notify their partner
       const partnerId = activeUsers.get(socket.id);
       if (partnerId) {
         console.log(`Notifying partner ${partnerId} about disconnection`);
-        
+
         // Check if partner is still connected
         if (io.sockets.sockets.get(partnerId)) {
           io.to(partnerId).emit('partnerDisconnected');
-          
+
           // Put the partner back in the waiting list
           waitingUsers.push(partnerId);
           io.to(partnerId).emit('waiting');
         }
-        
+
         // Remove the match
         activeUsers.delete(partnerId);
         activeUsers.delete(socket.id);
       }
-      
+
       // Remove from waiting list if present
       const waitingIndex = waitingUsers.indexOf(socket.id);
       if (waitingIndex !== -1) {
         waitingUsers.splice(waitingIndex, 1);
       }
-      
+
       // Log current state
-      console.log(`Active users: ${activeUsers.size}, Waiting users: ${waitingUsers.length}`);
+      console.log(`Active users: ${activeUsers.size}, Waiting users: ${waitingUsers.length}, Total users: ${connectedUsers}`);
+
+      // Broadcast updated user count
+      broadcastUserCount();
     });
   });
 

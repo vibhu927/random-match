@@ -178,16 +178,39 @@ export const useVideoChat = () => {
       // When we receive the remote stream
       peer.on('stream', (stream) => {
         console.log('Received remote stream (initiator)', stream);
+
+        // Ensure we have video tracks
+        if (stream.getVideoTracks().length === 0) {
+          console.warn('Remote stream has no video tracks (initiator)');
+        }
+
+        // Set the remote stream in state
         setRemoteStream(stream);
 
+        // Set the stream on the video element
         if (remoteVideoRef.current) {
+          console.log('Setting remote video source (initiator)');
           remoteVideoRef.current.srcObject = stream;
-          console.log('Set remote video source (initiator)');
 
-          // Force play the video
-          remoteVideoRef.current.play().catch(e => {
-            console.error('Error playing remote video:', e);
-          });
+          // Force play the video with retry
+          try {
+            const playPromise = remoteVideoRef.current.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(e => {
+                console.error('Error playing remote video (initiator):', e);
+                // Try again after a short delay
+                setTimeout(() => {
+                  if (remoteVideoRef.current) {
+                    remoteVideoRef.current.play().catch(e2 =>
+                      console.error('Error playing remote video (initiator retry):', e2)
+                    );
+                  }
+                }, 1000);
+              });
+            }
+          } catch (e) {
+            console.error('Exception trying to play remote video (initiator):', e);
+          }
         } else {
           console.error('Remote video ref is not available (initiator)');
         }
@@ -218,7 +241,7 @@ export const useVideoChat = () => {
     });
 
     // Handle receiving signals from partner
-    socket.on('signal', ({ from, signal }) => {
+    socket.on('signal', ({ from, signal }: { from: string, signal: any }) => {
       console.log(`Received signal from ${from}:`, signal.type || 'candidate');
 
       if (peerRef.current && status === 'connected') {
@@ -344,16 +367,39 @@ export const useVideoChat = () => {
         // When we receive the remote stream
         peer.on('stream', (stream) => {
           console.log('Received remote stream (non-initiator)', stream);
+
+          // Ensure we have video tracks
+          if (stream.getVideoTracks().length === 0) {
+            console.warn('Remote stream has no video tracks');
+          }
+
+          // Set the remote stream in state
           setRemoteStream(stream);
 
+          // Set the stream on the video element
           if (remoteVideoRef.current) {
+            console.log('Setting remote video source (non-initiator)');
             remoteVideoRef.current.srcObject = stream;
-            console.log('Set remote video source (non-initiator)');
 
-            // Force play the video
-            remoteVideoRef.current.play().catch(e => {
-              console.error('Error playing remote video:', e);
-            });
+            // Force play the video with retry
+            try {
+              const playPromise = remoteVideoRef.current.play();
+              if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                  console.error('Error playing remote video:', e);
+                  // Try again after a short delay
+                  setTimeout(() => {
+                    if (remoteVideoRef.current) {
+                      remoteVideoRef.current.play().catch(e2 =>
+                        console.error('Error playing remote video (retry):', e2)
+                      );
+                    }
+                  }, 1000);
+                });
+              }
+            } catch (e) {
+              console.error('Exception trying to play remote video:', e);
+            }
           } else {
             console.error('Remote video ref is not available (non-initiator)');
           }
@@ -469,7 +515,7 @@ export const useVideoChat = () => {
     });
 
     // Handle peer unavailable (when signaling fails)
-    socket.on('peerUnavailable', ({ peerId }) => {
+    socket.on('peerUnavailable', ({ peerId }: { peerId: string }) => {
       console.log(`Peer ${peerId} is unavailable`);
 
       // Clean up peer connection
