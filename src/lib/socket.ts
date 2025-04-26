@@ -1,9 +1,14 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { NextApiResponse } from 'next';
+import { Server as NetServer } from 'http';
 
 // Define a more compatible type for the socket server
 export type NextApiResponseWithSocket = NextApiResponse & {
-  socket: any; // Using any to avoid type conflicts
+  socket: {
+    server: NetServer & {
+      io?: SocketIOServer;
+    };
+  };
 };
 
 export const initSocket = (res: NextApiResponseWithSocket) => {
