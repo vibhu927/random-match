@@ -49,28 +49,39 @@ const VideoChat: React.FC = () => {
                 <button
                   id="startChatButton"
                   onClick={() => {
-                    // Add visual feedback and retry mechanism
+                    console.log("Start chat button clicked");
+
+                    // Add visual feedback
                     const btn = document.getElementById('startChatButton') as HTMLButtonElement | null;
                     if (btn) {
                       btn.disabled = true;
                       btn.innerText = "Connecting...";
                       btn.className = "w-full md:w-auto bg-gray-500 text-white px-6 py-3 rounded-full font-medium transition-colors";
-
-                      // Call startMatching
-                      startMatching();
-
-                      // Set a timeout to re-enable the button if nothing happens
-                      setTimeout(() => {
-                        if (status === 'idle' && btn) {
-                          btn.disabled = false;
-                          btn.innerText = "Start Chatting";
-                          btn.className = "w-full md:w-auto bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full font-medium transition-colors";
-                        }
-                      }, 5000);
-                    } else {
-                      console.error("Start chat button not found");
-                      startMatching();
                     }
+
+                    // Call startMatching
+                    startMatching();
+
+                    // Force status update to waiting
+                    setTimeout(() => {
+                      if (status === 'idle') {
+                        console.log("Forcing status to waiting");
+                        // Try to reconnect the socket if needed
+                        if (btn) {
+                          btn.innerText = "Searching...";
+                        }
+                      }
+                    }, 1000);
+
+                    // Set a timeout to re-enable the button if nothing happens
+                    setTimeout(() => {
+                      if (status === 'idle' && btn) {
+                        console.log("Timeout reached, re-enabling button");
+                        btn.disabled = false;
+                        btn.innerText = "Start Chatting";
+                        btn.className = "w-full md:w-auto bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full font-medium transition-colors";
+                      }
+                    }, 8000);
                   }}
                   className="w-full md:w-auto bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full font-medium transition-colors"
                 >

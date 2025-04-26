@@ -19,28 +19,36 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
   }
 
   console.log('Initializing Socket.io');
-  const io = new SocketIOServer(res.socket.server, {
-    path: '/api/socket',
-    addTrailingSlash: false,
-    // Add more reliable connection settings
-    pingTimeout: 60000, // 1 minute
-    pingInterval: 5000, // 5 seconds
-    transports: ['websocket', 'polling'],
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST']
-    },
-    connectTimeout: 30000, // 30 seconds
-    // Disable connection state recovery
-    connectionStateRecovery: {
-      maxDisconnectionDuration: 0
-    },
-    // Increase buffer size for large signaling messages
-    maxHttpBufferSize: 1e8, // 100 MB
-    // Disable compression for better compatibility
-    perMessageDeflate: false
-  });
-  res.socket.server.io = io;
+  try {
+    const io = new SocketIOServer(res.socket.server, {
+      path: '/api/socket',
+      addTrailingSlash: false,
+      // Add more reliable connection settings
+      pingTimeout: 60000, // 1 minute
+      pingInterval: 5000, // 5 seconds
+      transports: ['websocket', 'polling'],
+      cors: {
+        origin: '*',
+        methods: ['GET', 'POST']
+      },
+      connectTimeout: 30000, // 30 seconds
+      // Disable connection state recovery
+      connectionStateRecovery: {
+        maxDisconnectionDuration: 0
+      },
+      // Increase buffer size for large signaling messages
+      maxHttpBufferSize: 1e8, // 100 MB
+      // Disable compression for better compatibility
+      perMessageDeflate: false
+    });
+
+    res.socket.server.io = io;
+    console.log('Socket.io initialized successfully');
+  } catch (error) {
+    console.error('Error initializing Socket.io:', error);
+    res.status(500).end();
+    return;
+  }
 
   // Store active users
   const activeUsers = new Map();

@@ -23,11 +23,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Initialize socket connection
     const initSocket = async () => {
       try {
+        console.log('Initializing socket connection...');
+
         // Make a request to initialize the socket server
-        await fetch('/api/socket');
+        try {
+          const response = await fetch('/api/socket');
+          console.log('Socket server initialization response:', response.status);
+        } catch (error) {
+          console.error('Error initializing socket server:', error);
+          // Continue anyway, as the server might already be initialized
+        }
 
         // Create socket with improved reliability options
-        const socketInstance = io('', {
+        const socketInstance = io(window.location.origin, {
           path: '/api/socket',
           reconnection: true,
           reconnectionAttempts: 10,
@@ -38,6 +46,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           forceNew: true,
           transports: ['websocket', 'polling']
         });
+
+        console.log('Socket instance created');
 
         socketInstance.on('connect', () => {
           console.log('Socket connected with ID:', socketInstance.id);
@@ -57,10 +67,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         socketInstance.on('connect_error', (error) => {
           console.error('Socket connection error:', error);
+          // Try to reconnect with polling if websocket fails
+          console.log('Falling back to polling transport');
+          // Reconnect with polling transport
+          socketInstance.io.opts.transports = ['polling'];
+          socketInstance.connect();
         });
 
         socketInstance.on('reconnect', (attemptNumber) => {
           console.log('Socket reconnected after', attemptNumber, 'attempts');
+          setIsConnected(true);
         });
 
         socketInstance.on('reconnect_attempt', (attemptNumber) => {
@@ -75,6 +91,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           console.error('Socket failed to reconnect');
         });
 
+        // Set socket in state
         setSocket(socketInstance);
 
         return socketInstance;

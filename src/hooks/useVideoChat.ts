@@ -395,17 +395,29 @@ export const useVideoChat = () => {
 
     // Handle waiting state
     socket.on('waiting', () => {
+      console.log('Received waiting event');
       setStatus('waiting');
 
       // Clean up any existing peer connection
       if (peerRef.current) {
-        peerRef.current.destroy();
+        try {
+          peerRef.current.destroy();
+        } catch (e) {
+          console.error('Error destroying peer in waiting handler:', e);
+        }
         peerRef.current = null;
       }
 
       // Clear remote stream
       if (remoteStream) {
         setRemoteStream(null);
+      }
+
+      // Update any UI elements
+      const btn = document.getElementById('startChatButton') as HTMLButtonElement | null;
+      if (btn) {
+        btn.innerText = "Searching...";
+        btn.disabled = true;
       }
     });
 
@@ -499,30 +511,46 @@ export const useVideoChat = () => {
 
   // Start looking for a match
   const startMatching = () => {
-    if (socket && localStream) {
-      // If socket is not connected, try to reconnect
-      if (!isConnected) {
-        console.log('Socket not connected, attempting to reconnect...');
+    console.log('startMatching called, socket:', !!socket, 'isConnected:', isConnected, 'localStream:', !!localStream);
+
+    if (!localStream) {
+      console.error('Cannot start matching: localStream not available');
+      return;
+    }
+
+    if (!socket) {
+      console.error('Cannot start matching: socket not available');
+      return;
+    }
+
+    // Force status update to waiting
+    setStatus('waiting');
+
+    // If socket is not connected, try to reconnect
+    if (!isConnected) {
+      console.log('Socket not connected, attempting to reconnect...');
+
+      try {
         socket.connect();
 
         // Wait for connection and then emit ready
         socket.once('connect', () => {
           console.log('Socket reconnected, emitting ready');
           socket.emit('ready');
-          setStatus('waiting');
         });
-
-        return;
+      } catch (error) {
+        console.error('Error reconnecting socket:', error);
       }
 
-      // If already connected, emit ready directly
+      return;
+    }
+
+    // If already connected, emit ready directly
+    try {
       console.log('Emitting ready event');
       socket.emit('ready');
-      setStatus('waiting');
-    } else {
-      console.error('Cannot start matching: socket or localStream not available');
-      if (!socket) console.error('Socket is null');
-      if (!localStream) console.error('LocalStream is null');
+    } catch (error) {
+      console.error('Error emitting ready event:', error);
     }
   };
 
