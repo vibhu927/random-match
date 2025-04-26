@@ -53,6 +53,7 @@ export const useVideoChat = () => {
         localStream.getTracks().forEach(track => track.stop());
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle socket events
