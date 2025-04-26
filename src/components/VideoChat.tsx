@@ -50,7 +50,7 @@ const VideoChat: React.FC = () => {
                   id="startChatButton"
                   onClick={() => {
                     // Add visual feedback and retry mechanism
-                    const btn = document.getElementById('startChatButton');
+                    const btn = document.getElementById('startChatButton') as HTMLButtonElement | null;
                     if (btn) {
                       btn.disabled = true;
                       btn.innerText = "Connecting...";
@@ -61,7 +61,7 @@ const VideoChat: React.FC = () => {
 
                       // Set a timeout to re-enable the button if nothing happens
                       setTimeout(() => {
-                        if (status === 'idle') {
+                        if (status === 'idle' && btn) {
                           btn.disabled = false;
                           btn.innerText = "Start Chatting";
                           btn.className = "w-full md:w-auto bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-full font-medium transition-colors";
