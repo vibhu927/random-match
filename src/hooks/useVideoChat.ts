@@ -532,13 +532,23 @@ export const useVideoChat = () => {
       console.log('Socket not connected, attempting to reconnect...');
 
       try {
-        socket.connect();
+        // First, try to initialize the socket server
+        fetch('/api/socket')
+          .then(response => {
+            console.log('Socket server initialization response:', response.status);
 
-        // Wait for connection and then emit ready
-        socket.once('connect', () => {
-          console.log('Socket reconnected, emitting ready');
-          socket.emit('ready');
-        });
+            // Connect the socket
+            socket.connect();
+
+            // Wait for connection and then emit ready
+            socket.once('connect', () => {
+              console.log('Socket reconnected, emitting ready');
+              socket.emit('ready');
+            });
+          })
+          .catch(error => {
+            console.error('Error initializing socket server:', error);
+          });
       } catch (error) {
         console.error('Error reconnecting socket:', error);
       }
@@ -548,8 +558,20 @@ export const useVideoChat = () => {
 
     // If already connected, emit ready directly
     try {
-      console.log('Emitting ready event');
-      socket.emit('ready');
+      // First, try to initialize the socket server
+      fetch('/api/socket')
+        .then(response => {
+          console.log('Socket server initialization response:', response.status);
+
+          // Emit ready event
+          console.log('Emitting ready event');
+          socket.emit('ready');
+        })
+        .catch(error => {
+          console.error('Error initializing socket server:', error);
+          // Try to emit ready anyway
+          socket.emit('ready');
+        });
     } catch (error) {
       console.error('Error emitting ready event:', error);
     }

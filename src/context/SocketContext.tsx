@@ -38,13 +38,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const socketInstance = io(window.location.origin, {
           path: '/api/socket',
           reconnection: true,
-          reconnectionAttempts: 10,
+          reconnectionAttempts: Infinity,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
           timeout: 20000,
           autoConnect: true,
-          forceNew: true,
-          transports: ['websocket', 'polling']
+          forceNew: false, // Don't force new connection to allow reusing existing one
+          transports: ['polling', 'websocket'] // Start with polling for better compatibility
         });
 
         console.log('Socket instance created');
