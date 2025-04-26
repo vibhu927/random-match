@@ -53,7 +53,6 @@ export const useVideoChat = () => {
         localStream.getTracks().forEach(track => track.stop());
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle socket events
@@ -496,7 +495,6 @@ export const useVideoChat = () => {
         peerRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, isConnected, localStream, status, remoteStream]);
 
   // Start looking for a match

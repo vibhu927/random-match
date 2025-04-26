@@ -31,8 +31,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
       methods: ['GET', 'POST']
     },
     connectTimeout: 30000, // 30 seconds
-    // Allow multiple connections from the same client (for testing)
-    connectionStateRecovery: false,
+    // Disable connection state recovery
+    connectionStateRecovery: {
+      maxDisconnectionDuration: 0
+    },
     // Increase buffer size for large signaling messages
     maxHttpBufferSize: 1e8, // 100 MB
     // Disable compression for better compatibility
@@ -82,7 +84,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
       if (waitingUsers.length > 0) {
         // Find a valid partner
         let partnerId = null;
-        let validWaitingUsers = [];
+        const validWaitingUsers = [];
 
         // Filter out disconnected users from waiting list
         for (const id of waitingUsers) {
