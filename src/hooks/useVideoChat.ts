@@ -78,12 +78,17 @@ export const useVideoChat = () => {
         stream: localStream,
         config: {
           iceServers: [
+            // Google STUN servers
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun3.l.google.com:19302' },
             { urls: 'stun:stun4.l.google.com:19302' },
+
+            // Twilio STUN server
             { urls: 'stun:global.stun.twilio.com:3478' },
+
+            // Open Relay TURN servers
             {
               urls: 'turn:openrelay.metered.ca:80',
               username: 'openrelayproject',
@@ -98,9 +103,27 @@ export const useVideoChat = () => {
               urls: 'turn:openrelay.metered.ca:443?transport=tcp',
               username: 'openrelayproject',
               credential: 'openrelayproject'
+            },
+
+            // Additional free TURN servers
+            {
+              urls: 'turn:relay.metered.ca:80',
+              username: 'e8dd65f92c62d3e36ea5b8df',
+              credential: 'uWdWNmkhvVNFQpuV'
+            },
+            {
+              urls: 'turn:relay.metered.ca:443',
+              username: 'e8dd65f92c62d3e36ea5b8df',
+              credential: 'uWdWNmkhvVNFQpuV'
+            },
+            {
+              urls: 'turn:relay.metered.ca:443?transport=tcp',
+              username: 'e8dd65f92c62d3e36ea5b8df',
+              credential: 'uWdWNmkhvVNFQpuV'
             }
           ],
-          iceCandidatePoolSize: 10
+          iceCandidatePoolSize: 10,
+          iceTransportPolicy: 'all' // Try all connection methods
         },
         // Simplify the connection process
         sdpTransform: (sdp) => {
@@ -178,10 +201,18 @@ export const useVideoChat = () => {
       // When we receive the remote stream
       peer.on('stream', (stream) => {
         console.log('Received remote stream (initiator)', stream);
+        console.log('Remote stream tracks:', stream.getTracks().map(t => `${t.kind}:${t.id}:${t.enabled}:${t.readyState}`));
 
         // Ensure we have video tracks
         if (stream.getVideoTracks().length === 0) {
           console.warn('Remote stream has no video tracks (initiator)');
+        } else {
+          console.log('Remote video tracks:', stream.getVideoTracks().length);
+          // Make sure video tracks are enabled
+          stream.getVideoTracks().forEach(track => {
+            console.log(`Video track ${track.id} enabled: ${track.enabled}`);
+            track.enabled = true;
+          });
         }
 
         // Set the remote stream in state
@@ -190,7 +221,25 @@ export const useVideoChat = () => {
         // Set the stream on the video element
         if (remoteVideoRef.current) {
           console.log('Setting remote video source (initiator)');
+
+          // First, clear any existing srcObject
+          if (remoteVideoRef.current.srcObject) {
+            try {
+              const oldStream = remoteVideoRef.current.srcObject as MediaStream;
+              oldStream.getTracks().forEach(track => track.stop());
+            } catch (e) {
+              console.error('Error stopping old tracks:', e);
+            }
+          }
+
+          // Set new stream
           remoteVideoRef.current.srcObject = stream;
+
+          // Set video properties
+          remoteVideoRef.current.muted = false;
+          remoteVideoRef.current.volume = 1.0;
+          remoteVideoRef.current.autoplay = true;
+          remoteVideoRef.current.playsInline = true;
 
           // Force play the video with retry
           try {
@@ -201,9 +250,18 @@ export const useVideoChat = () => {
                 // Try again after a short delay
                 setTimeout(() => {
                   if (remoteVideoRef.current) {
-                    remoteVideoRef.current.play().catch(e2 =>
-                      console.error('Error playing remote video (initiator retry):', e2)
-                    );
+                    remoteVideoRef.current.play().catch(e2 => {
+                      console.error('Error playing remote video (initiator retry):', e2);
+                      // Try one more time with user interaction simulation
+                      document.addEventListener('click', function tryPlayAfterClick() {
+                        if (remoteVideoRef.current) {
+                          remoteVideoRef.current.play().catch(e3 =>
+                            console.error('Error playing after click:', e3)
+                          );
+                        }
+                        document.removeEventListener('click', tryPlayAfterClick);
+                      }, { once: true });
+                    });
                   }
                 }, 1000);
               });
@@ -267,12 +325,17 @@ export const useVideoChat = () => {
           stream: localStream,
           config: {
             iceServers: [
+              // Google STUN servers
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
               { urls: 'stun:stun2.l.google.com:19302' },
               { urls: 'stun:stun3.l.google.com:19302' },
               { urls: 'stun:stun4.l.google.com:19302' },
+
+              // Twilio STUN server
               { urls: 'stun:global.stun.twilio.com:3478' },
+
+              // Open Relay TURN servers
               {
                 urls: 'turn:openrelay.metered.ca:80',
                 username: 'openrelayproject',
@@ -287,9 +350,27 @@ export const useVideoChat = () => {
                 urls: 'turn:openrelay.metered.ca:443?transport=tcp',
                 username: 'openrelayproject',
                 credential: 'openrelayproject'
+              },
+
+              // Additional free TURN servers
+              {
+                urls: 'turn:relay.metered.ca:80',
+                username: 'e8dd65f92c62d3e36ea5b8df',
+                credential: 'uWdWNmkhvVNFQpuV'
+              },
+              {
+                urls: 'turn:relay.metered.ca:443',
+                username: 'e8dd65f92c62d3e36ea5b8df',
+                credential: 'uWdWNmkhvVNFQpuV'
+              },
+              {
+                urls: 'turn:relay.metered.ca:443?transport=tcp',
+                username: 'e8dd65f92c62d3e36ea5b8df',
+                credential: 'uWdWNmkhvVNFQpuV'
               }
             ],
-            iceCandidatePoolSize: 10
+            iceCandidatePoolSize: 10,
+            iceTransportPolicy: 'all' // Try all connection methods
           },
           // Simplify the connection process
           sdpTransform: (sdp) => {
@@ -367,10 +448,18 @@ export const useVideoChat = () => {
         // When we receive the remote stream
         peer.on('stream', (stream) => {
           console.log('Received remote stream (non-initiator)', stream);
+          console.log('Remote stream tracks (non-initiator):', stream.getTracks().map(t => `${t.kind}:${t.id}:${t.enabled}:${t.readyState}`));
 
           // Ensure we have video tracks
           if (stream.getVideoTracks().length === 0) {
-            console.warn('Remote stream has no video tracks');
+            console.warn('Remote stream has no video tracks (non-initiator)');
+          } else {
+            console.log('Remote video tracks (non-initiator):', stream.getVideoTracks().length);
+            // Make sure video tracks are enabled
+            stream.getVideoTracks().forEach(track => {
+              console.log(`Video track ${track.id} enabled: ${track.enabled}`);
+              track.enabled = true;
+            });
           }
 
           // Set the remote stream in state
@@ -379,26 +468,53 @@ export const useVideoChat = () => {
           // Set the stream on the video element
           if (remoteVideoRef.current) {
             console.log('Setting remote video source (non-initiator)');
+
+            // First, clear any existing srcObject
+            if (remoteVideoRef.current.srcObject) {
+              try {
+                const oldStream = remoteVideoRef.current.srcObject as MediaStream;
+                oldStream.getTracks().forEach(track => track.stop());
+              } catch (e) {
+                console.error('Error stopping old tracks (non-initiator):', e);
+              }
+            }
+
+            // Set new stream
             remoteVideoRef.current.srcObject = stream;
+
+            // Set video properties
+            remoteVideoRef.current.muted = false;
+            remoteVideoRef.current.volume = 1.0;
+            remoteVideoRef.current.autoplay = true;
+            remoteVideoRef.current.playsInline = true;
 
             // Force play the video with retry
             try {
               const playPromise = remoteVideoRef.current.play();
               if (playPromise !== undefined) {
                 playPromise.catch(e => {
-                  console.error('Error playing remote video:', e);
+                  console.error('Error playing remote video (non-initiator):', e);
                   // Try again after a short delay
                   setTimeout(() => {
                     if (remoteVideoRef.current) {
-                      remoteVideoRef.current.play().catch(e2 =>
-                        console.error('Error playing remote video (retry):', e2)
-                      );
+                      remoteVideoRef.current.play().catch(e2 => {
+                        console.error('Error playing remote video (non-initiator retry):', e2);
+                        // Try one more time with user interaction simulation
+                        document.addEventListener('click', function tryPlayAfterClick() {
+                          if (remoteVideoRef.current) {
+                            remoteVideoRef.current.play().catch(e3 =>
+                              console.error('Error playing after click (non-initiator):', e3)
+                            );
+                          }
+                          document.removeEventListener('click', tryPlayAfterClick);
+                        }, { once: true });
+                      });
                     }
                   }, 1000);
                 });
               }
             } catch (e) {
-              console.error('Exception trying to play remote video:', e);
+              console.error('Exception trying to play remote video (non-initiator):', e);
             }
           } else {
             console.error('Remote video ref is not available (non-initiator)');
@@ -514,18 +630,32 @@ export const useVideoChat = () => {
       }, 1000);
     });
 
+    // Handle signal delivery confirmation
+    socket.on('signalDelivered', ({ to }: { to: string }) => {
+      console.log(`Signal delivered to ${to}`);
+    });
+
     // Handle peer unavailable (when signaling fails)
     socket.on('peerUnavailable', ({ peerId }: { peerId: string }) => {
       console.log(`Peer ${peerId} is unavailable`);
 
       // Clean up peer connection
       if (peerRef.current) {
-        peerRef.current.destroy();
+        try {
+          peerRef.current.destroy();
+        } catch (e) {
+          console.error('Error destroying peer connection:', e);
+        }
         peerRef.current = null;
       }
 
       // Clear remote stream
       if (remoteStream) {
+        try {
+          remoteStream.getTracks().forEach(track => track.stop());
+        } catch (e) {
+          console.error('Error stopping remote tracks:', e);
+        }
         setRemoteStream(null);
       }
 
@@ -534,8 +664,16 @@ export const useVideoChat = () => {
 
       // Automatically look for a new match
       setTimeout(() => {
-        if (socket.connected) {
+        if (socket && socket.connected) {
+          console.log('Requesting new match after peer unavailable');
           socket.emit('ready');
+        } else if (socket) {
+          console.log('Socket disconnected, attempting to reconnect');
+          socket.connect();
+          socket.once('connect', () => {
+            console.log('Socket reconnected, requesting new match');
+            socket.emit('ready');
+          });
         }
       }, 1000);
     });
@@ -544,14 +682,28 @@ export const useVideoChat = () => {
     return () => {
       socket.off('matched');
       socket.off('signal');
+      socket.off('signalDelivered');
       socket.off('waiting');
       socket.off('skipped');
       socket.off('partnerDisconnected');
       socket.off('peerUnavailable');
 
       if (peerRef.current) {
-        peerRef.current.destroy();
+        try {
+          peerRef.current.destroy();
+        } catch (e) {
+          console.error('Error destroying peer in cleanup:', e);
+        }
         peerRef.current = null;
+      }
+
+      // Clean up any streams
+      if (remoteStream) {
+        try {
+          remoteStream.getTracks().forEach(track => track.stop());
+        } catch (e) {
+          console.error('Error stopping remote tracks in cleanup:', e);
+        }
       }
     };
   }, [socket, isConnected, localStream, status, remoteStream]);

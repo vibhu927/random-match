@@ -28,7 +28,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
     transports: ['websocket', 'polling'],
     cors: {
       origin: '*',
-      methods: ['GET', 'POST']
+      methods: ['GET', 'POST'],
+      credentials: true
     },
     connectTimeout: 30000, // 30 seconds
     // Disable connection state recovery
@@ -38,7 +39,15 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
     // Increase buffer size for large signaling messages
     maxHttpBufferSize: 1e8, // 100 MB
     // Disable compression for better compatibility
-    perMessageDeflate: false
+    perMessageDeflate: false,
+    // Allow upgrading from HTTP long-polling to WebSocket
+    allowUpgrades: true,
+    // Set a reasonable upgrade timeout
+    upgradeTimeout: 10000, // 10 seconds
+    // Ensure we can handle many connections
+    maxHttpBufferSize: 1e8, // 100 MB
+    // Retry options
+    retries: 3
   });
   res.socket.server.io = io;
 
@@ -235,6 +244,17 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
       if (partnerId !== to) {
         console.log(`Signal mismatch: ${socket.id} is trying to signal ${to} but is matched with ${partnerId || 'nobody'}`);
         socket.emit('peerUnavailable', { peerId: to });
+
+        // If the user is matched with someone else, maintain that connection
+        if (partnerId) {
+          console.log(`Keeping existing match between ${socket.id} and ${partnerId}`);
+        } else {
+          // If not matched with anyone, put back in waiting list
+          if (!waitingUsers.includes(socket.id)) {
+            waitingUsers.push(socket.id);
+            socket.emit('waiting');
+          }
+        }
         return;
       }
 
@@ -242,14 +262,37 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
       const recipientSocket = io.sockets.sockets.get(to);
       if (recipientSocket) {
         try {
+          // Forward the signal with a timeout to ensure delivery
+          const signalTimeout = setTimeout(() => {
+            console.log(`Signal delivery timeout for ${to}, notifying sender`);
+            socket.emit('peerUnavailable', { peerId: to });
+          }, 5000); // 5 second timeout
+
+          // Send the signal
           recipientSocket.emit('signal', {
             from: socket.id,
             signal,
           });
+
+          // Clear the timeout once sent
+          clearTimeout(signalTimeout);
           console.log(`Signal forwarded from ${socket.id} to ${to}`);
+
+          // Acknowledge receipt to sender
+          socket.emit('signalDelivered', { to });
         } catch (error) {
           console.error(`Error forwarding signal to ${to}:`, error);
           socket.emit('peerUnavailable', { peerId: to });
+
+          // Put the sender back in waiting list
+          if (!waitingUsers.includes(socket.id)) {
+            waitingUsers.push(socket.id);
+            socket.emit('waiting');
+          }
+
+          // Clean up the match
+          activeUsers.delete(socket.id);
+          activeUsers.delete(to);
         }
       } else {
         console.log(`Recipient ${to} not found, notifying sender`);
@@ -259,6 +302,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
         // Clean up the match since the partner is gone
         activeUsers.delete(socket.id);
         activeUsers.delete(to);
+
+        // Put the sender back in waiting list
+        if (!waitingUsers.includes(socket.id)) {
+          waitingUsers.push(socket.id);
+          socket.emit('waiting');
+        }
       }
     });
 

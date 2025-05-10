@@ -35,41 +35,97 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
 
       const handleLoadedMetadata = () => {
         console.log(`Video ${isLocal ? 'local' : 'remote'} metadata loaded`);
+
+        // Set video attributes again to ensure they're applied
+        if (!isLocal) {
+          video.muted = muted;
+          video.volume = 1.0;
+        }
       };
 
       const handleLoadedData = () => {
         console.log(`Video ${isLocal ? 'local' : 'remote'} data loaded`);
+
+        // Log video track info
+        if (video.srcObject instanceof MediaStream) {
+          const stream = video.srcObject;
+          console.log(`Video ${isLocal ? 'local' : 'remote'} tracks:`,
+            stream.getTracks().map(t => `${t.kind}:${t.id}:${t.enabled}:${t.readyState}`));
+
+          // Ensure video tracks are enabled
+          stream.getVideoTracks().forEach(track => {
+            track.enabled = true;
+          });
+        }
+
         // Force play when data is loaded
         try {
           const playPromise = video.play();
           if (playPromise !== undefined) {
             playPromise.catch(e => {
-              console.error('Error playing video:', e);
+              console.error(`Error playing ${isLocal ? 'local' : 'remote'} video:`, e);
               // Try again after a short delay
               setTimeout(() => {
-                video.play().catch(e2 => console.error('Error playing video (retry):', e2));
+                if (video) {
+                  video.play().catch(e2 => {
+                    console.error(`Error playing ${isLocal ? 'local' : 'remote'} video (retry):`, e2);
+                    // Try one more time with user interaction simulation
+                    document.addEventListener('click', function tryPlayAfterClick() {
+                      if (video) {
+                        video.play().catch(e3 =>
+                          console.error(`Error playing ${isLocal ? 'local' : 'remote'} video after click:`, e3)
+                        );
+                      }
+                      document.removeEventListener('click', tryPlayAfterClick);
+                    }, { once: true });
+                  });
+                }
               }, 1000);
             });
           }
         } catch (e) {
-          console.error('Exception trying to play video:', e);
+          console.error(`Exception trying to play ${isLocal ? 'local' : 'remote'} video:`, e);
+        }
+      };
+
+      const handleCanPlay = () => {
+        console.log(`Video ${isLocal ? 'local' : 'remote'} can play`);
+        // Try to play again if not already playing
+        if (video.paused) {
+          video.play().catch(e =>
+            console.error(`Error playing ${isLocal ? 'local' : 'remote'} video on canplay:`, e)
+          );
         }
       };
 
       const handleError = (e: Event) => {
-        console.error(`Video ${isLocal ? 'local' : 'remote'} error:`, e);
+        console.error(`Video ${isLocal ? 'local' : 'remote'} error:`, e, video.error);
+      };
+
+      const handleStalled = () => {
+        console.warn(`Video ${isLocal ? 'local' : 'remote'} stalled`);
+      };
+
+      const handleSuspend = () => {
+        console.warn(`Video ${isLocal ? 'local' : 'remote'} suspended`);
       };
 
       video.addEventListener('loadedmetadata', handleLoadedMetadata);
       video.addEventListener('loadeddata', handleLoadedData);
+      video.addEventListener('canplay', handleCanPlay);
       video.addEventListener('error', handleError);
+      video.addEventListener('stalled', handleStalled);
+      video.addEventListener('suspend', handleSuspend);
 
       return () => {
         video.removeEventListener('loadedmetadata', handleLoadedMetadata);
         video.removeEventListener('loadeddata', handleLoadedData);
+        video.removeEventListener('canplay', handleCanPlay);
         video.removeEventListener('error', handleError);
+        video.removeEventListener('stalled', handleStalled);
+        video.removeEventListener('suspend', handleSuspend);
       };
-    }, [isLocal]);
+    }, [isLocal, muted]);
 
     return (
       <video
@@ -82,6 +138,9 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(
         muted={muted}
         autoPlay={autoPlay}
         playsInline={playsInline}
+        controls={false}
+        disablePictureInPicture={true}
+        disableRemotePlayback={true}
       />
     );
   }
