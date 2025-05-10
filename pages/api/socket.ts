@@ -43,11 +43,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithSoc
     // Allow upgrading from HTTP long-polling to WebSocket
     allowUpgrades: true,
     // Set a reasonable upgrade timeout
-    upgradeTimeout: 10000, // 10 seconds
-    // Ensure we can handle many connections
-    maxHttpBufferSize: 1e8, // 100 MB
-    // Retry options
-    retries: 3
+    upgradeTimeout: 10000 // 10 seconds
   });
   res.socket.server.io = io;
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useSocket } from '@/src/context/SocketContext';
-import Peer from 'simple-peer';
+import Peer, { SignalData } from 'simple-peer';
 
 type ChatStatus = 'idle' | 'waiting' | 'connected' | 'skipped' | 'error';
 
@@ -299,7 +299,7 @@ export const useVideoChat = () => {
     });
 
     // Handle receiving signals from partner
-    socket.on('signal', ({ from, signal }: { from: string, signal: any }) => {
+    socket.on('signal', ({ from, signal }: { from: string, signal: SignalData }) => {
       console.log(`Received signal from ${from}:`, signal.type || 'candidate');
 
       if (peerRef.current && status === 'connected') {
